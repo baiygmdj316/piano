@@ -2,50 +2,41 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>精准钢琴音感训练器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>完美钢琴训练器</title>
     <style>
         :root {
             --primary-color: #4a90e2;
-            --hover-color: #357abd;
             --key-width: 32px;
             --black-key-width: 18px;
         }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            background: #f5f7fa;
-        }
-
-        .controls {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-
-        .button-group button {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0.8rem 1.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin: 0 0.5rem;
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, system-ui, sans-serif;
+            touch-action: pan-y;
         }
 
         #piano-container {
-            position: relative;
             width: 100%;
             overflow-x: auto;
-            padding: 2rem 0;
-            background: white;
+            -webkit-overflow-scrolling: touch;
+            padding: 20px 0;
+            background: #fff;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        @media (hover: hover) {
+            #piano-container::-webkit-scrollbar {
+                height: 8px;
+                background: #f1f1f1;
+            }
+            #piano-container::-webkit-scrollbar-thumb {
+                background: var(--primary-color);
+                border-radius: 4px;
+            }
         }
 
         #piano-keys {
@@ -56,7 +47,8 @@
 
         .piano-key {
             position: absolute;
-            transition: all 0.15s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .white-key {
@@ -73,7 +65,7 @@
             height: 100px;
             background: #333;
             z-index: 3;
-            top: 0px;
+            top: 0;
             transform: translateX(40%);
         }
 
@@ -81,29 +73,21 @@
             position: absolute;
             width: 100%;
             text-align: center;
-            user-select: none;
             pointer-events: none;
         }
 
         .white-key .key-label {
             bottom: 10px;
             color: #666;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .black-key .key-label {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
             top: 12px;
             color: white;
-            line-height: 1.2;
-            font-size: 8px;
-        }
-
-        .enharmonic-label {
-            opacity: 0.8;
-            margin-top: 2px;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
         }
 
         .selected-range {
@@ -115,21 +99,44 @@
             z-index: 4 !important;
         }
 
-        #status {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #e3f2fd;
+        .controls {
+            padding: 15px;
+            background: #f8f9fa;
             border-radius: 8px;
+            margin-bottom: 20px;
         }
 
-        #piano-container::-webkit-scrollbar {
-            height: 8px;
-            background: #f1f1f1;
-        }
-
-        #piano-container::-webkit-scrollbar-thumb {
+        .button-group button {
             background: var(--primary-color);
-            border-radius: 4px;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            margin: 8px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        #status {
+            padding: 12px;
+            background: #e9ecef;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --key-width: 28px;
+                --black-key-width: 16px;
+            }
+            body {
+                padding: 10px;
+            }
+            .button-group button {
+                padding: 14px 20px;
+                width: 100%;
+                margin: 5px 0;
+            }
         }
     </style>
 </head>
@@ -140,7 +147,7 @@
             <button id="replay">重播</button>
             <button id="reveal">显示答案</button>
         </div>
-        <div id="status">准备好开始训练吧！请先用鼠标拖动选择音域范围</div>
+        <div id="status">已匹配实际音源文件</div>
     </div>
     
     <div id="piano-container">
@@ -150,37 +157,17 @@
 <script>
 class PianoTrainer {
     constructor() {
-        this.audioBuffers = new Map();
         this.keys = [];
-        this.whiteKeyPositions = new Map();
         this.selectedRange = null;
-        this.audioContext = null;
         this.currentNote = null;
-        this.currentSource = null;
-        this.scrollSpeed = 0;
-        this.scrollInterval = null;
-        this.initialize();
+        this.audioContext = null;
+        this.audioBuffers = new Map();
+        this.init();
     }
 
-    initialize() {
+    init() {
         this.createPiano();
         this.setupEventListeners();
-    }
-
-    midiToNote(midiNumber) {
-        const notes = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
-        const octave = Math.floor((midiNumber) / 12) - 1;
-        const noteIndex = midiNumber % 12;
-        return {
-            name: `${notes[noteIndex]}${octave}`,
-            altName: this.getAltName(notes[noteIndex], octave),
-            frequency: 440 * Math.pow(2, (midiNumber - 69)/12)
-        };
-    }
-
-    getAltName(note, octave) {
-        const enharmonicMap = {'C♯':'D♭','D♯':'E♭','F♯':'G♭','G♯':'A♭','A♯':'B♭'};
-        return enharmonicMap[note] ? `${enharmonicMap[note]}${octave}` : null;
     }
 
     createPiano() {
@@ -192,14 +179,14 @@ class PianoTrainer {
         let currentX = 0;
         const whiteKeysMap = new Map();
 
-        // 创建白键
+        // 创建白键（MIDI 21到108）
         for(let midi = 21; midi <= 108; midi++) {
             const note = this.midiToNote(midi);
             if(!note.name.includes('♯')) {
                 const key = this.createKey(midi, note, 'white', currentX);
                 whiteKeysMap.set(midi, currentX);
                 currentX += keyWidth;
-                this.keys.push({element:key, midiNumber:midi, ...note});
+                this.keys.push({element: key, midiNumber: midi, ...note});
             }
         }
 
@@ -212,7 +199,7 @@ class PianoTrainer {
                 if (prevWhite !== null && nextWhite !== null) {
                     const baseX = (whiteKeysMap.get(prevWhite) + whiteKeysMap.get(nextWhite)) / 2;
                     const key = this.createKey(midi, note, 'black', baseX);
-                    this.keys.push({element:key, midiNumber:midi, ...note});
+                    this.keys.push({element: key, midiNumber: midi, ...note});
                 }
             }
         }
@@ -241,78 +228,51 @@ class PianoTrainer {
         return key;
     }
 
-    findPreviousWhiteKey(blackMidi) {
-        let midi = blackMidi - 1;
-        while(midi >= 21 && this.midiToNote(midi).name.includes('♯')) midi--;
-        return midi >=21 ? midi : null;
-    }
-
-    findNextWhiteKey(blackMidi) {
-        let midi = blackMidi + 1;
-        while(midi <= 108 && this.midiToNote(midi).name.includes('♯')) midi++;
-        return midi <=108 ? midi : null;
-    }
-
     setupEventListeners() {
-        let startMidi = null;
         const container = document.getElementById('piano-keys');
-        const pianoContainer = document.getElementById('piano-container');
+        let startMidi = null;
+        let isDragging = false;
 
-        const startAutoScroll = (direction) => {
-            this.scrollSpeed = direction * 20;
-            if (!this.scrollInterval) {
-                this.scrollInterval = setInterval(() => {
-                    pianoContainer.scrollLeft += this.scrollSpeed;
-                }, 50);
-            }
-        };
-
-        const stopAutoScroll = () => {
-            clearInterval(this.scrollInterval);
-            this.scrollInterval = null;
-            this.scrollSpeed = 0;
-        };
-
-        container.addEventListener('mousedown', e => {
-            const key = e.target.closest('.piano-key');
+        const handleStart = (e) => {
+            const touch = e.touches?.[0] || e;
+            const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
             if (key) {
                 startMidi = parseInt(key.dataset.midi);
                 this.clearSelection();
+                isDragging = true;
+                if(e.cancelable) e.preventDefault();
             }
-        });
+        };
 
-        document.addEventListener('mousemove', e => {
-            if (startMidi === null) return;
-
-            const rect = pianoContainer.getBoundingClientRect();
-            const edgeThreshold = 50;
-            const mouseX = e.clientX;
-            
-            if (mouseX < rect.left + edgeThreshold) {
-                startAutoScroll(-1);
-            } else if (mouseX > rect.right - edgeThreshold) {
-                startAutoScroll(1);
-            } else {
-                stopAutoScroll();
+        const handleMove = (e) => {
+            if (!isDragging) return;
+            const touch = e.touches?.[0] || e;
+            const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
+            if (key) {
+                const currentMidi = parseInt(key.dataset.midi);
+                this.highlightRange(
+                    Math.min(startMidi, currentMidi),
+                    Math.max(startMidi, currentMidi)
+                );
             }
+            if(e.cancelable) e.preventDefault();
+        };
 
-            const hoverKey = document.elementsFromPoint(e.clientX, e.clientY)
-                .find(el => el.classList.contains('piano-key'));
-            
-            if (hoverKey) {
-                const currentMidi = parseInt(hoverKey.dataset.midi);
-                this.highlightRange(Math.min(startMidi, currentMidi), Math.max(startMidi, currentMidi));
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
+        const handleEnd = () => {
+            isDragging = false;
             startMidi = null;
-            stopAutoScroll();
-        });
+        };
+
+        container.addEventListener('mousedown', handleStart);
+        container.addEventListener('touchstart', handleStart);
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchend', handleEnd);
 
         document.getElementById('newNote').addEventListener('click', () => {
             if (!this.selectedRange) {
-                alert('请先用鼠标选择音域范围');
+                alert('请先用鼠标/手指选择音域范围');
                 return;
             }
             const availableNotes = this.keys.filter(k => 
@@ -344,41 +304,36 @@ class PianoTrainer {
         });
     }
 
-    async playNote(midiNumber) {
-        try {
-            if (!this.audioContext) {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (this.audioContext.state === 'suspended') {
-                await this.audioContext.resume();
-            }
+    midiToNote(midiNumber) {
+        const notes = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+        const octave = Math.floor((midiNumber) / 12) - 1;
+        const noteIndex = midiNumber % 12;
+        
+        // 生成等音降号表示
+        const enharmonicMap = {
+            'C♯': 'Db', 'D♯': 'Eb', 
+            'F♯': 'Gb', 'G♯': 'Ab', 
+            'A♯': 'Bb'
+        };
+        
+        return {
+            name: `${notes[noteIndex]}${octave}`,
+            altName: enharmonicMap[notes[noteIndex]] ? 
+                `${enharmonicMap[notes[noteIndex]]}${octave}` : null,
+            frequency: 440 * Math.pow(2, (midiNumber - 69)/12)
+        };
+    }
 
-            const note = this.midiToNote(midiNumber);
-            const noteName = note.name.replace('♯', 's'); // 关键修复：移除八度偏移
+    findPreviousWhiteKey(blackMidi) {
+        let midi = blackMidi - 1;
+        while(midi >= 21 && this.midiToNote(midi).name.includes('♯')) midi--;
+        return midi >=21 ? midi : null;
+    }
 
-            const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/${noteName}.mp3`;
-
-            if (!this.audioBuffers.has(noteName)) {
-                const response = await fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                this.audioBuffers.set(noteName, audioBuffer);
-            }
-
-            if (this.currentSource) {
-                this.currentSource.stop();
-            }
-
-            const source = this.audioContext.createBufferSource();
-            source.buffer = this.audioBuffers.get(noteName);
-            source.connect(this.audioContext.destination);
-            source.start(0);
-            this.currentSource = source;
-
-        } catch (error) {
-            console.error('播放失败:', error);
-            document.getElementById('status').textContent = '需要点击页面后重试';
-        }
+    findNextWhiteKey(blackMidi) {
+        let midi = blackMidi + 1;
+        while(midi <= 108 && this.midiToNote(midi).name.includes('♯')) midi++;
+        return midi <=108 ? midi : null;
     }
 
     highlightRange(start, end) {
@@ -391,9 +346,52 @@ class PianoTrainer {
     clearSelection() {
         this.keys.forEach(k => k.element.classList.remove('selected-range', 'current-note'));
     }
+
+    async playNote(midiNumber) {
+        try {
+            if (!this.audioContext) {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
+            const note = this.midiToNote(midiNumber);
+            // 关键修复：使用降号音名匹配实际文件名
+            const noteName = note.altName || note.name;
+            const fileName = noteName.replace('♯', 'b'); // 将C♯4转为Db4
+
+            const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/${fileName}.mp3`;
+
+            if (!this.audioBuffers.has(fileName)) {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`音源加载失败: ${fileName}.mp3`);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                this.audioBuffers.set(fileName, audioBuffer);
+            }
+
+            if (this.currentSource) {
+                this.currentSource.stop();
+            }
+
+            const source = this.audioContext.createBufferSource();
+            source.connect(this.audioContext.destination);
+            source.buffer = this.audioBuffers.get(fileName);
+            source.start(0);
+            this.currentSource = source;
+
+            document.getElementById('status').textContent = `正在播放: ${fileName}.mp3`;
+
+        } catch (error) {
+            console.error('播放失败:', error);
+            document.getElementById('status').textContent = error.message;
+        }
+    }
 }
 
 const trainer = new PianoTrainer();
+
 </script>
 </body>
 </html>
