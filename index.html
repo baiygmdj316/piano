@@ -26,7 +26,6 @@
             background: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            touch-action: pan-x; /* 新增触摸滚动支持 */
         }
 
         @media (hover: hover) {
@@ -180,7 +179,6 @@ class PianoTrainer {
         let currentX = 0;
         const whiteKeysMap = new Map();
 
-        // 创建白键（MIDI 21到108）
         for(let midi = 21; midi <= 108; midi++) {
             const note = this.midiToNote(midi);
             if(!note.name.includes('♯')) {
@@ -191,7 +189,6 @@ class PianoTrainer {
             }
         }
 
-        // 创建黑键
         for(let midi = 21; midi <= 108; midi++) {
             const note = this.midiToNote(midi);
             if(note.name.includes('♯')) {
@@ -233,19 +230,30 @@ class PianoTrainer {
         const container = document.getElementById('piano-keys');
         let startMidi = null;
         let isDragging = false;
+        let lastTouchCount = 0;
 
         const handleStart = (e) => {
+            if(e.touches && e.touches.length > 1) return; // 忽略多指触控
+            
             const touch = e.touches?.[0] || e;
             const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
             if (key) {
                 startMidi = parseInt(key.dataset.midi);
                 this.clearSelection();
                 isDragging = true;
+                lastTouchCount = e.touches?.length || 0;
             }
         };
 
         const handleMove = (e) => {
             if (!isDragging) return;
+            
+            // 检测到多指操作时自动释放选择状态
+            if(e.touches && e.touches.length > 1) {
+                isDragging = false;
+                return;
+            }
+
             const touch = e.touches?.[0] || e;
             const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
             if (key) {
@@ -254,6 +262,7 @@ class PianoTrainer {
                     Math.min(startMidi, currentMidi),
                     Math.max(startMidi, currentMidi)
                 );
+                e.preventDefault(); // 阻止单指操作时的滚动
             }
         };
 
@@ -262,13 +271,15 @@ class PianoTrainer {
             startMidi = null;
         };
 
+        // 事件监听
         container.addEventListener('mousedown', handleStart);
         container.addEventListener('touchstart', handleStart);
         document.addEventListener('mousemove', handleMove);
-        document.addEventListener('touchmove', handleMove, { passive: true }); // 改为passive模式
+        document.addEventListener('touchmove', handleMove, { passive: false });
         document.addEventListener('mouseup', handleEnd);
         document.addEventListener('touchend', handleEnd);
 
+        // 按钮事件
         document.getElementById('newNote').addEventListener('click', () => {
             if (!this.selectedRange) {
                 alert('请先用鼠标/手指选择音域范围');
@@ -308,7 +319,6 @@ class PianoTrainer {
         const octave = Math.floor((midiNumber) / 12) - 1;
         const noteIndex = midiNumber % 12;
         
-        // 生成等音降号表示
         const enharmonicMap = {
             'C♯': 'Db', 'D♯': 'Eb', 
             'F♯': 'Gb', 'G♯': 'Ab', 
@@ -356,7 +366,6 @@ class PianoTrainer {
             }
 
             const note = this.midiToNote(midiNumber);
-            // 关键修复：使用降号音名匹配实际文件名
             const noteName = note.altName || note.name;
             const fileName = noteName.replace('♯', 'b');
 
