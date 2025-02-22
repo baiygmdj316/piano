@@ -26,6 +26,7 @@
             background: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            touch-action: pan-x; /* 新增触摸滚动支持 */
         }
 
         @media (hover: hover) {
@@ -240,7 +241,6 @@ class PianoTrainer {
                 startMidi = parseInt(key.dataset.midi);
                 this.clearSelection();
                 isDragging = true;
-                if(e.cancelable) e.preventDefault();
             }
         };
 
@@ -255,7 +255,6 @@ class PianoTrainer {
                     Math.max(startMidi, currentMidi)
                 );
             }
-            if(e.cancelable) e.preventDefault();
         };
 
         const handleEnd = () => {
@@ -266,7 +265,7 @@ class PianoTrainer {
         container.addEventListener('mousedown', handleStart);
         container.addEventListener('touchstart', handleStart);
         document.addEventListener('mousemove', handleMove);
-        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchmove', handleMove, { passive: true }); // 改为passive模式
         document.addEventListener('mouseup', handleEnd);
         document.addEventListener('touchend', handleEnd);
 
@@ -359,7 +358,7 @@ class PianoTrainer {
             const note = this.midiToNote(midiNumber);
             // 关键修复：使用降号音名匹配实际文件名
             const noteName = note.altName || note.name;
-            const fileName = noteName.replace('♯', 'b'); // 将C♯4转为Db4
+            const fileName = noteName.replace('♯', 'b');
 
             const url = `https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/${fileName}.mp3`;
 
@@ -391,7 +390,6 @@ class PianoTrainer {
 }
 
 const trainer = new PianoTrainer();
-
 </script>
 </body>
 </html>
