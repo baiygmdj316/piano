@@ -228,33 +228,45 @@ class PianoTrainer {
 
     setupEventListeners() {
         const container = document.getElementById('piano-keys');
+        const pianoContainer = document.getElementById('piano-container');
         let startMidi = null;
         let isDragging = false;
-        let lastTouchCount = 0;
+        let scrollRAF = null;
 
         const handleStart = (e) => {
-            if(e.touches && e.touches.length > 1) return; // 忽略多指触控
-            
+            if(e.touches && e.touches.length > 1) return;
             const touch = e.touches?.[0] || e;
             const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
             if (key) {
                 startMidi = parseInt(key.dataset.midi);
                 this.clearSelection();
                 isDragging = true;
-                lastTouchCount = e.touches?.length || 0;
             }
+        };
+
+        const autoScroll = (clientX) => {
+            const rect = pianoContainer.getBoundingClientRect();
+            const scrollZone = rect.width * 0.2;
+            const scrollSpeed = 15;
+
+            if (clientX < rect.left + scrollZone) {
+                pianoContainer.scrollLeft -= scrollSpeed;
+            } else if (clientX > rect.right - scrollZone) {
+                pianoContainer.scrollLeft += scrollSpeed;
+            }
+
+            scrollRAF = requestAnimationFrame(() => autoScroll(clientX));
         };
 
         const handleMove = (e) => {
             if (!isDragging) return;
-            
-            // 检测到多指操作时自动释放选择状态
-            if(e.touches && e.touches.length > 1) {
-                isDragging = false;
-                return;
-            }
-
             const touch = e.touches?.[0] || e;
+            
+            // 自动滚动逻辑
+            cancelAnimationFrame(scrollRAF);
+            autoScroll(touch.clientX);
+
+            // 获取琴键位置
             const key = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.piano-key');
             if (key) {
                 const currentMidi = parseInt(key.dataset.midi);
@@ -262,16 +274,16 @@ class PianoTrainer {
                     Math.min(startMidi, currentMidi),
                     Math.max(startMidi, currentMidi)
                 );
-                e.preventDefault(); // 阻止单指操作时的滚动
+                e.preventDefault();
             }
         };
 
         const handleEnd = () => {
             isDragging = false;
             startMidi = null;
+            cancelAnimationFrame(scrollRAF);
         };
 
-        // 事件监听
         container.addEventListener('mousedown', handleStart);
         container.addEventListener('touchstart', handleStart);
         document.addEventListener('mousemove', handleMove);
@@ -279,7 +291,6 @@ class PianoTrainer {
         document.addEventListener('mouseup', handleEnd);
         document.addEventListener('touchend', handleEnd);
 
-        // 按钮事件
         document.getElementById('newNote').addEventListener('click', () => {
             if (!this.selectedRange) {
                 alert('请先用鼠标/手指选择音域范围');
